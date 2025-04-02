@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    volumes:
+      - vmagent-data:/vmagent-data
+      - ./config/vmagent:/etc/vmagent  # スクレイプ設定ファイルをマウント
+    command:
+      - '--promscrape.config=/etc/vmagent/config.yml'
+      - '--remoteWrite.url=http://vminsert:8480/insert/0/prometheus'  # 最新エンドポイントに変更
+      - '--httpListenAddr=:8429'
+    depends_on:
+      - vminsert  # vmstorageではなくvminsertに依存
+    restart: unless-stopped
+
+  vmstorage:
+    image: victoriametrics/vmstorage:latest
+    volumes:
+      - vmstorage-data:/storage  # 長期保存ストレージ
+    command:
+      - '--storageDataPath=/storage'
+      - '--retentionPeriod=6'  # 保持期間（月単位）
+      - '--httpListenAddr=:8428'
+    restart: unless-stopped
+
+  vminsert:
+    image: victoriametrics/vminsert:latest
+    command:
+      - '--storageNode=vmstorage:8400'
+      - '--httpListenAddr=:8480'
+    depends_on:
+      - vmstorage
+    restart: unless-stopped
+
+  vmselect:
+    image: victoriametrics/vmselect:latest
+    command:
+      - '--storageNode=vmstorage:8401'
+      - '--httpListenAddr=:8481'
+    depends_on:
+      - vmstorage
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "43000:3000"  # Web UIポートを標準に戻す（43000は特別な理由がない限り不要）
+    volumes:
+      - grafana-data:/var/lib/grafana  # 永続化ボリューム
+      # 初期データソースやダッシュボードの自動プロビジョニングも可能（省略可）
+      # - ./config/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    depends_on:
+      - vmselect  # Grafanaはvmselectに依存（クエリ用）
+    restart: unless-stopped
+
+volumes:
+  vmagent-data:
+  vmstorage-data:
+  grafana-data:
