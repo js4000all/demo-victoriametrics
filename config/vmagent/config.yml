@@ -7,3 +7,13 @@ scrape_configs:
       - targets: ['192.168.1.xxx:9598']  # ← Vector コンテナ名とポートに合わせて
     metrics_path: /metrics
     scheme: http
+  - job_name: 'victoriametrics-components'
+    static_configs:
+      - targets:
+          - vmagent:8429
+          - vminsert:8480
+          - vmselect:8481
+          - vmstorage:8428
+          # - vmstorage-0:8482  # StatefulSet名ベース
+          # - vmstorage-1:8482
+          # ...必要に応じて増やす
